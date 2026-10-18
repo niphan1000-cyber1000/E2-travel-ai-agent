@@ -1,41 +1,39 @@
 ﻿{
-  "name": "e2-travel-ai-agent",
-  "private": true,
-  "version": "1.0.0",
-  "description": "E2 Travel Software Tier-1 Operations & Support Specialist AI Console for U.S. Mission and Department of State travel administrators",
-  "type": "module",
-  "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build",
-    "start": "NODE_ENV=production tsx server.ts",
-    "preview": "vite preview",
-    "clean": "node -e \"try { fs.rmSync('dist', { recursive: true, force: true }); } catch (e) {}\"",
-    "lint": "tsc --noEmit",
-    "test": "NODE_ENV=test tsx --test tests/api-validation.test.ts tests/per-diem.test.ts"
-  },
-  "dependencies": {
-    "@google/genai": "^2.4.0",
-    "@tailwindcss/vite": "^4.3.3",
-    "@vitejs/plugin-react": "^6.1.1",
-    "lucide-react": "^0.546.0",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
-    "vite": "^8.3.0",
-    "express": "^4.21.2",
-    "dotenv": "^17.2.3",
-    "motion": "^12.23.24"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
-    "tailwindcss": "^4.3.3",
-    "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
-  }
+    "name":  "e2-travel-ai-agent",
+    "private":  true,
+    "version":  "1.0.0",
+    "description":  "E2 Travel Software Tier-1 Operations \u0026 Support Specialist AI Console for U.S. Mission and Department of State travel administrators",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "tsx server.ts",
+                    "build":  "vite build",
+                    "start":  "NODE_ENV=production tsx server.ts",
+                    "preview":  "vite preview",
+                    "clean":  "node -e \"try { fs.rmSync(\u0027dist\u0027, { recursive: true, force: true }); } catch (e) {}\"",
+                    "lint":  "tsc --noEmit",
+                    "test":  "cross-env NODE_ENV=test tsx --test tests/api-validation.test.ts tests/per-diem.test.ts"
+                },
+    "dependencies":  {
+                         "@google/genai":  "^2.4.0",
+                         "@tailwindcss/vite":  "^4.3.3",
+                         "@vitejs/plugin-react":  "^6.1.1",
+                         "lucide-react":  "^0.546.0",
+                         "react":  "^19.0.1",
+                         "react-dom":  "^19.0.1",
+                         "vite":  "^8.3.0",
+                         "express":  "^4.21.2",
+                         "dotenv":  "^17.2.3",
+                         "motion":  "^12.23.24"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^22.14.0",
+                            "@types/react":  "^19.3.0",
+                            "@types/react-dom":  "^19.3.0",
+                            "autoprefixer":  "^10.4.21",
+                            "esbuild":  "^0.25.0",
+                            "tailwindcss":  "^4.3.3",
+                            "tsx":  "^4.21.0",
+                            "typescript":  "^7.0.2",
+                            "@types/express":  "^4.17.21"
+                        }
 }
-
-
