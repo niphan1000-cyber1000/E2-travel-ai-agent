@@ -1,0 +1,6 @@
+{
+  "name": "E2 Travel Mission Support & Operations Console",
+  "description": "Expert Tier-1 AI Support Specialist and incident diagnostic console for E2 Solutions Travel Software across U.S. Mission and Department of State posts globally.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
