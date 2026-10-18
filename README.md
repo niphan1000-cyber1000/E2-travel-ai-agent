@@ -23,5 +23,7 @@ This project serves as an intelligent prototype and support automation tool to h
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/niphan1000-cyber1000/E2-travel-ai-agent.git
-cd E2-travel-ai-agent
+   git clone [https://github.com/niphan1000-cyber1000/E2-travel-ai-agent.git](https://github.com/niphan1000-cyber1000/E2-travel-ai-agent.git)
+   cd E2-travel-ai-agent
+   ```
+   
