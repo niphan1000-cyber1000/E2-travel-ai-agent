@@ -551,6 +551,12 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
+    if (!process.env.GEMINI_API_KEY) {
+    console.warn('[WARNING] GEMINI_API_KEY not found. Running in OFFLINE Knowledge Base mode.');
+  } else {
+    console.log('[INFO] Gemini AI connected successfully.');
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[E2 Mission Support Server] listening on http://0.0.0.0:${PORT} (Model: ${GEMINI_MODEL})`);
   });
@@ -561,5 +567,6 @@ const isTestRunner = process.env.NODE_ENV === 'test' || process.argv.some((arg) 
 if (!isTestRunner) {
   startServer();
 }
+
 
 
