@@ -13,7 +13,9 @@ import {
   ShieldAlert,
   Loader2,
   Terminal,
-  Download
+  Download,
+  BookOpen,
+  Info
 } from 'lucide-react';
 import { ChatMessage, Language, PostInfo, Ticket } from '../types';
 import { translations } from '../translations';
@@ -39,23 +41,37 @@ export const ChatSpecialist: React.FC<ChatSpecialistProps> = ({
       id: 'welcome',
       role: 'model',
       content: currentLang === 'th'
-        ? `สวัสดีครับ ผมคือ **E2 Travel Tier-1 Support Specialist & IT Analyst** ประจำ U.S. Mission และ Department of State
+        ? `สวัสดีครับ ผมคือ **E2 Travel Tier-1 Support Specialist (Advisory AI)** ประจำ U.S. Mission และ Department of State
 
-ผมพร้อมช่วยเหลือเจ้าหน้าที่, Travel Arrangers, และผู้ดูแลระบบ E2 Solutions ทั่วโลก (กว่า 200 Posts) ในเรื่อง:
-1. **การวินิจฉัยปัญหาทางเทคนิค & Error Logs** (เช่น Error 401 ขณะกดส่ง TA, Error 502 GFMS Sync, Routing Chain Deadlock)
-2. **ขั้นตอนมาตรฐานการปฏิบัติงาน (SOP)** (เช่น User Onboarding / Offboarding, การกำหนดสิทธิ์ AO / FMO)
-3. **การคำนวณเบี้ยเลี้ยง & กฎระเบียบ** (DSSR Foreign Per Diem, 14 FAM 500, Fly America Act Open Skies)
+> **⚠️ ข้อความแจ้งเตือนความโปร่งใส (Transparency & Simulation Notice):**
+> ระบบนี้เป็นระบบจำลองให้คำปรึกษาเชิงเทคนิคและระเบียบการเดินทาง (14 FAM 500 & DSSR) **ไม่ได้เชื่อมต่อกับฐานข้อมูลสดของหน่วยงานหรือระบบลับ** ผู้ใช้งานต้องนำขั้นตอนที่แนะนำไปตรวจสอบในระบบ E2 Solutions และได้รับการอนุมัติจากผู้มีอำนาจประจำ Post ก่อนดำเนินการ
 
-*คุณสามารถคลิกเลือกสถานการณ์จำลองด้านล่าง หรือพิมพ์คำถาม / วาง Error Log เพื่อให้ผมวิเคราะห์ขั้นตอนการแก้ไขได้ทันทีครับ*`
-        : `Welcome. I am your **E2 Travel Tier-1 Support Specialist & IT Operations Analyst** for the U.S. Mission and Department of State.
+ผมพร้อมช่วยเหลือใน 3 ด้านหลัก:
+1. **การวิเคราะห์หาสาเหตุที่เป็นไปได้ & ขั้นตอนการตรวจสอบทางเทคนิค (Step-by-Step Diagnostic)**
+2. **แนวทางปฏิบัติงานมาตรฐาน (Reference SOPs)** สำหรับ User Onboarding / Offboarding
+3. **การคำนวณเบี้ยเลี้ยง & กฎระเบียบ DSSR / Fly America Act**
 
-I assist travel administrators, IT analysts, and embassy personnel across 200+ global posts with:
-1. **Technical Troubleshooting & Error Analysis** (e.g., Error 401 on TA submission, GFMS Sync Error 502, Routing deadlocks)
-2. **Standard Operating Procedures (SOPs)** (User Onboarding/Offboarding, Approving Official profile setup)
-3. **Travel Policy & Regulation Guidance** (14 FAM 500, DSSR Chapter 040, Fly America Act Open Skies)
+*คลิกเลือกตัวอย่างสถานการณ์จำลองด้านล่าง หรือพิมพ์คำถามเพื่อเริ่มการวิเคราะห์ได้ทันทีครับ*`
+        : `Welcome. I am your **E2 Travel Tier-1 Support Specialist (Advisory AI)** for the U.S. Mission and Department of State.
 
-*Select any real-world simulation below or type your inquiry to receive structured diagnostic action steps.*`,
+> **⚠️ Transparency & Simulation Notice:**
+> This advisory console provides technical troubleshooting and procedural guidance based on 14 FAM 500 and DSSR reference documentation. **It does not connect to live classified or production government databases.** All administrative changes must be verified in the official E2 Solutions console and approved by authorized post officials.
+
+I assist with:
+1. **Hypothesized Root Cause Analysis & Step-by-Step Diagnostic Verification**
+2. **Standard Operating Procedures (SOPs)** for user lifecycle management
+3. **Policy Guidance on DSSR Per Diem & Fly America Act Exceptions**
+
+*Select a simulated scenario below or enter your inquiry to begin.*`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      metadata: {
+        source: 'knowledge_base_fallback',
+        model: 'system-initialization',
+        isVerified: false,
+        isSimulated: true,
+        disclaimer: 'Standard introductory guidance',
+        policyReferences: ['14 FAM 500', 'DSSR 040'],
+      },
     },
   ]);
 
@@ -71,7 +87,7 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
       prompt: currentLang === 'th'
         ? 'ช่วยตรวจสอบเคสนี้ให้หน่อยครับ ผู้ใช้งานไม่สามารถกดส่ง Travel Authorization ในระบบ E2 ได้ ติด Error 401 ควรตรวจสอบส่วนไหนก่อน?'
         : 'Can you troubleshoot this case: User cannot submit Travel Authorization in E2, getting Error 401. What should be checked first?',
-      badge: 'Critical Bug',
+      badge: 'Troubleshoot',
     },
     {
       id: 'sc-onboard',
@@ -116,8 +132,8 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
   useEffect(() => {
     if (ticketToAnalyze) {
       const ticketPrompt = currentLang === 'th'
-        ? `ช่วยวิเคราะห์ Ticket รหัส [${ticketToAnalyze.id}]: "${ticketToAnalyze.title}"\n- Post: ${ticketToAnalyze.post}\n- หมวดหมู่: ${ticketToAnalyze.category}\n- รายละเอียด: ${ticketToAnalyze.description}\n${ticketToAnalyze.errorLog ? `- Error Log: ${ticketToAnalyze.errorLog}` : ''}\nขอขั้นตอนการแก้ไขปัญหาทีละขั้น (Step-by-step) และการตรวจสอบความถูกต้องตามระเบียบ 14 FAM ครับ`
-        : `Please analyze Service Ticket [${ticketToAnalyze.id}]: "${ticketToAnalyze.title}"\n- Assigned Post: ${ticketToAnalyze.post}\n- Category: ${ticketToAnalyze.category}\n- Description: ${ticketToAnalyze.description}\n${ticketToAnalyze.errorLog ? `- Error Log: ${ticketToAnalyze.errorLog}` : ''}\nProvide root cause analysis, step-by-step diagnostic actions, and 14 FAM regulatory compliance verification.`;
+        ? `ช่วยวิเคราะห์ Ticket รหัส [${ticketToAnalyze.id}]: "${ticketToAnalyze.title}"\n- Post: ${ticketToAnalyze.post}\n- หมวดหมู่: ${ticketToAnalyze.category}\n- รายละเอียด: ${ticketToAnalyze.description}\n${ticketToAnalyze.errorLog ? `- Error Log: ${ticketToAnalyze.errorLog}` : ''}\nขอขั้นตอนการตรวจสอบทีละขั้น (Step-by-step verification) และการอ้างอิงระเบียบ 14 FAM ครับ`
+        : `Please analyze Service Ticket [${ticketToAnalyze.id}]: "${ticketToAnalyze.title}"\n- Assigned Post: ${ticketToAnalyze.post}\n- Category: ${ticketToAnalyze.category}\n- Description: ${ticketToAnalyze.description}\n${ticketToAnalyze.errorLog ? `- Error Log: ${ticketToAnalyze.errorLog}` : ''}\nProvide hypothesized root causes, step-by-step verification checklist, and 14 FAM regulatory compliance references.`;
 
       sendMessage(ticketPrompt);
       onClearTicketToAnalyze();
@@ -150,29 +166,45 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
+        throw new Error(data.error || `Server returned HTTP ${response.status} (${data.code || 'UNKNOWN_ERROR'})`);
       }
 
-      const data = await response.json();
       const botMsg: ChatMessage = {
         id: 'bot-' + Date.now(),
         role: 'model',
         content: data.reply || 'No response returned from support specialist engine.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        metadata: data.metadata,
       };
 
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
       console.error('Chat error:', err);
-      // Fallback message
       const errorMsg: ChatMessage = {
         id: 'bot-err-' + Date.now(),
         role: 'model',
         content: currentLang === 'th'
-          ? `### ⚠️ ข้อขัดข้องในการเชื่อมต่อระบบ E2 Service API\nระบบทำงานในโหมด Offline Fallback เนื่องจาก: ${err.message || 'Network delay'}\n\nกรุณาตรวจสอบว่า Service Desk API และเครือข่ายภายในสถานทูตทำงานปกติ หรือคลิกเลือกคำถามจำลองด้านบนเพื่อดูฐานข้อมูลความรู้ SOP ครับ`
-          : `### ⚠️ Connection Notice to E2 Support API\nOperating under internal fallback mode: ${err.message || 'Service latency'}. Please select a verified simulation prompt above to reference the local E2 SOP knowledge engine.`,
+          ? `### ⚠️ ข้อขัดข้องในการสื่อสารกับระบบ AI Support
+เกิดข้อผิดพลาดในการประมวลผล: **${err.message || 'Network Timeout'}**
+
+**คำแนะนำ:**
+- ตรวจสอบความถูกต้องของข้อความและลองส่งใหม่อีกครั้ง
+- คุณสามารถคลิกเลือกปุ่มสถานการณ์จำลองด้านบนเพื่อดูแนวทางแก้ไขปัญหามาตรฐานจากฐานความรู้ E2 Reference ได้ทันที`
+          : `### ⚠️ AI Support Communication Notice
+Processing notice: **${err.message || 'Service latency'}**
+
+**Action:**
+- Please retry your request or select one of the verified simulation scenario chips above to consult the offline E2 knowledge base.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        metadata: {
+          source: 'knowledge_base_fallback',
+          isVerified: false,
+          isSimulated: true,
+          disclaimer: 'System communication advisory',
+        },
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -196,10 +228,14 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate report');
+      }
+
       const reportMarkdown = data.report || 'Report generation complete.';
       onOpenSopModal(`Incident Report - ${selectedPost.name}`, reportMarkdown);
     } catch (err: any) {
-      alert('Failed to generate report: ' + err.message);
+      alert('Report Notice: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -222,12 +258,12 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-semibold text-sm text-white">E2 Tier-1 Support Specialist</span>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-700/50">
-                ACTIVE
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-950 text-amber-300 border border-amber-700/60 font-semibold">
+                SIMULATION ADVISORY
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Active Context: <span className="text-blue-300 font-medium">{selectedPost.name}</span> ({selectedPost.tz}) • Knowledge Base: 14 FAM / DSSR / FTR
+              Active Context: <span className="text-blue-300 font-medium">{selectedPost.name}</span> ({selectedPost.tz}) • Knowledge: 14 FAM &amp; DSSR
             </p>
           </div>
         </div>
@@ -252,6 +288,17 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Persistent Disclaimer Banner */}
+      <div className="bg-amber-950/40 px-4 py-1.5 border-b border-amber-900/50 flex items-center justify-between text-[11px] text-amber-300/90">
+        <div className="flex items-center space-x-1.5">
+          <Info className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+          <span>
+            <strong>Notice:</strong> Advisory guidance is based on public 14 FAM &amp; DSSR regulations. Live production/classified databases are not queried.
+          </span>
+        </div>
+        <span className="hidden md:inline font-mono text-[10px] text-amber-400/80">SANDBOX MODE</span>
       </div>
 
       {/* Quick Scenario Starters Strip */}
@@ -279,6 +326,9 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
+          const isAiLive = msg.metadata?.source === 'ai_live';
+          const isKnowledgeBase = msg.metadata?.source === 'knowledge_base_fallback';
+
           return (
             <div
               key={msg.id}
@@ -300,23 +350,43 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
                 {/* Header inside bubble */}
                 <div className="flex items-center justify-between text-[11px] mb-1.5 opacity-75 border-b border-white/10 pb-1">
                   <span className="font-semibold tracking-wide">
-                    {isUser ? 'You (IT Analyst / Travel Arranger)' : 'E2 Solutions Tier-1 Specialist'}
+                    {isUser ? 'You (IT Analyst / Travel Arranger)' : 'E2 Solutions Tier-1 Specialist (AI)'}
                   </span>
                   <span>{msg.timestamp}</span>
                 </div>
 
-                {/* Body Content with formatted sections */}
+                {/* Body Content */}
                 <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans space-y-2">
                   {msg.content}
                 </div>
 
-                {/* Bot action tools */}
-                {!isUser && msg.id !== 'welcome' && (
-                  <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <FileCheck className="w-3 h-3 text-emerald-400" />
-                      14 FAM &amp; DSSR Verified
-                    </span>
+                {/* Bot action tools & Source Attribution */}
+                {!isUser && (
+                  <div className="mt-3 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                    <div className="flex items-center space-x-2">
+                      {isAiLive ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-indigo-300 bg-indigo-950/70 border border-indigo-800/50 px-2 py-0.5 rounded-full font-mono">
+                          <Sparkles className="w-3 h-3 text-indigo-400" />
+                          AI Live ({msg.metadata?.model || 'gemini-3.8-flash'})
+                        </span>
+                      ) : isKnowledgeBase ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-950/70 border border-amber-800/50 px-2 py-0.5 rounded-full font-mono">
+                          <BookOpen className="w-3 h-3 text-amber-400" />
+                          Simulated Knowledge Base Reference
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-800/70 px-2 py-0.5 rounded-full font-mono">
+                          System Message
+                        </span>
+                      )}
+
+                      {msg.metadata?.requestId && (
+                        <span className="text-[9px] text-slate-500 font-mono hidden sm:inline" title={`Request ID: ${msg.metadata.requestId}`}>
+                          ID: {msg.metadata.requestId.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => copyToClipboard(msg.content, msg.id)}
@@ -388,6 +458,7 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
               onChange={(e) => setInput(e.target.value)}
               placeholder={t.askAiPlaceholder}
               disabled={isLoading}
+              maxLength={4000}
               className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 transition focus:outline-none"
             />
           </div>
@@ -402,7 +473,7 @@ I assist travel administrators, IT analysts, and embassy personnel across 200+ g
           </button>
         </form>
         <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 px-1">
-          <span>Powered by Gemini 3.8 Flash • U.S. Mission E2 Support Protocol</span>
+          <span>Advisory Engine: Gemini API with Offline 14 FAM Policy Reference Fallback</span>
           <span className="hidden sm:inline">Press Enter to submit</span>
         </div>
       </div>

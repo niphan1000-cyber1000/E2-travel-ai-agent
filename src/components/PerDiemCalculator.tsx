@@ -85,10 +85,18 @@ export const PerDiemCalculator: React.FC<PerDiemCalculatorProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-1 rounded-md text-[11px] font-mono bg-blue-950 text-blue-300 border border-blue-800/40 font-semibold">
-              DSSR Section 040 Active
+            <span className="px-2.5 py-1 rounded-md text-[11px] font-mono bg-amber-950 text-amber-300 border border-amber-800/60 font-semibold">
+              Sample DSSR Rates (Simulation Only)
             </span>
           </div>
+        </div>
+
+        {/* Disclaimer Notice */}
+        <div className="mt-3 p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+          <span>
+            <strong>Official Policy Notice:</strong> For actual voucher reimbursement and official travel orders, verify live published rates at the Department of State Standardized Regulations portal (<strong>aoprals.state.gov</strong>).
+          </span>
+          <span className="font-mono text-[10px] text-blue-400 font-semibold">14 FAM 560</span>
         </div>
       </div>
 

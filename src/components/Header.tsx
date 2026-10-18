@@ -53,14 +53,14 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Top utility strip */}
       <div className="bg-slate-950/80 px-4 py-1.5 border-b border-slate-800/80 text-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center space-x-2 text-slate-300">
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-200 border border-blue-700/50 text-[10px] font-semibold tracking-wider uppercase">
-            USG Official System
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-700/60 text-[10px] font-semibold tracking-wider uppercase">
+            SIMULATED ENVIRONMENT
           </span>
           <span className="hidden sm:inline text-slate-400">|</span>
-          <span className="text-slate-300 font-medium">U.S. Department of State • Global Travel Operations (E2 Solutions)</span>
-          <span className="hidden md:inline text-emerald-400 flex items-center gap-1 font-mono text-[11px] ml-2">
-            <Radio className="w-3 h-3 animate-pulse text-emerald-400 inline" />
-            200+ Posts Synced
+          <span className="text-slate-300 font-medium">U.S. Department of State • E2 Solutions Advisory &amp; Training Sandbox</span>
+          <span className="hidden md:inline text-amber-300/80 flex items-center gap-1 font-mono text-[11px] ml-2">
+            <Radio className="w-3 h-3 text-amber-400 inline" />
+            Simulated Reference Dataset
           </span>
         </div>
 

@@ -126,7 +126,12 @@ export const TicketQueue: React.FC<TicketQueueProps> = ({
               <TicketIcon className="w-5 h-5" />
             </span>
             <div>
-              <h2 className="text-lg font-bold text-white">{t.ticketsTitle}</h2>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-lg font-bold text-white">{t.ticketsTitle}</h2>
+                <span className="text-[10px] font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800/60 px-1.5 py-0.5 rounded font-semibold">
+                  Simulated Scenarios
+                </span>
+              </div>
               <p className="text-xs text-slate-400">{t.ticketsDesc}</p>
             </div>
           </div>

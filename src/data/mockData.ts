@@ -1,21 +1,31 @@
 import { PostInfo, SystemService, Ticket, DiagnosticIssue, SOPDocument } from '../types';
 
-export const mockPosts: PostInfo[] = [
-  { code: 'BKK', name: 'U.S. Embassy Bangkok', country: 'Thailand', region: 'EAP', status: 'operational', tz: 'UTC+7', perDiemLodging: 185, perDiemMIE: 110 },
-  { code: 'TYO', name: 'U.S. Embassy Tokyo', country: 'Japan', region: 'EAP', status: 'operational', tz: 'UTC+9', perDiemLodging: 230, perDiemMIE: 135 },
-  { code: 'NBO', name: 'U.S. Embassy Nairobi', country: 'Kenya', region: 'AF', status: 'degraded', tz: 'UTC+3', perDiemLodging: 195, perDiemMIE: 98 },
-  { code: 'LON', name: 'U.S. Embassy London', country: 'United Kingdom', region: 'EUR', status: 'operational', tz: 'UTC+1', perDiemLodging: 290, perDiemMIE: 165 },
-  { code: 'BOG', name: 'U.S. Embassy Bogota', country: 'Colombia', region: 'WHA', status: 'operational', tz: 'UTC-5', perDiemLodging: 145, perDiemMIE: 78 },
-  { code: 'FRA', name: 'U.S. Consulate Frankfurt', country: 'Germany', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 198, perDiemMIE: 124 },
-  { code: 'MNL', name: 'U.S. Embassy Manila', country: 'Philippines', region: 'EAP', status: 'operational', tz: 'UTC+8', perDiemLodging: 165, perDiemMIE: 92 },
-  { code: 'PAR', name: 'U.S. Embassy Paris', country: 'France', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 280, perDiemMIE: 155 },
-  { code: 'GVA', name: 'U.S. Mission Geneva', country: 'Switzerland', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 340, perDiemMIE: 190 },
-  { code: 'DEL', name: 'U.S. Embassy New Delhi', country: 'India', region: 'SCA', status: 'operational', tz: 'UTC+5:30', perDiemLodging: 175, perDiemMIE: 85 },
-  { code: 'CAI', name: 'U.S. Embassy Cairo', country: 'Egypt', region: 'NEA', status: 'operational', tz: 'UTC+3', perDiemLodging: 160, perDiemMIE: 82 },
-  { code: 'WAS', name: 'Department of State HST Main State', country: 'United States', region: 'WHA', status: 'operational', tz: 'UTC-4', perDiemLodging: 258, perDiemMIE: 79 },
+export const DATASET_METADATA = {
+  isSimulated: true,
+  environmentLabel: 'SIMULATED DEMO SANDBOX',
+  disclaimer: 'All operational metrics, uptime rates, incident tickets, and per diem rate samples are simulated baseline data models for system training, interface design, and procedural demonstration. This system is NOT connected to live Department of State production servers or classified agency networks.',
+  officialDssrPortal: 'https://aoprals.state.gov',
+  lastReviewDate: '2026-10-17',
+};
+
+// Sample mission posts for interface simulation (Reference rates for planning only)
+export const mockPosts: (PostInfo & { isSampleRate?: boolean; verifiedSource?: string })[] = [
+  { code: 'BKK', name: 'U.S. Embassy Bangkok', country: 'Thailand', region: 'EAP', status: 'operational', tz: 'UTC+7', perDiemLodging: 185, perDiemMIE: 110, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'TYO', name: 'U.S. Embassy Tokyo', country: 'Japan', region: 'EAP', status: 'operational', tz: 'UTC+9', perDiemLodging: 230, perDiemMIE: 135, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'NBO', name: 'U.S. Embassy Nairobi', country: 'Kenya', region: 'AF', status: 'degraded', tz: 'UTC+3', perDiemLodging: 195, perDiemMIE: 98, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'LON', name: 'U.S. Embassy London', country: 'United Kingdom', region: 'EUR', status: 'operational', tz: 'UTC+1', perDiemLodging: 290, perDiemMIE: 165, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'BOG', name: 'U.S. Embassy Bogota', country: 'Colombia', region: 'WHA', status: 'operational', tz: 'UTC-5', perDiemLodging: 145, perDiemMIE: 78, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'FRA', name: 'U.S. Consulate Frankfurt', country: 'Germany', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 198, perDiemMIE: 124, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'MNL', name: 'U.S. Embassy Manila', country: 'Philippines', region: 'EAP', status: 'operational', tz: 'UTC+8', perDiemLodging: 165, perDiemMIE: 92, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'PAR', name: 'U.S. Embassy Paris', country: 'France', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 280, perDiemMIE: 155, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'GVA', name: 'U.S. Mission Geneva', country: 'Switzerland', region: 'EUR', status: 'operational', tz: 'UTC+2', perDiemLodging: 340, perDiemMIE: 190, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'DEL', name: 'U.S. Embassy New Delhi', country: 'India', region: 'SCA', status: 'operational', tz: 'UTC+5:30', perDiemLodging: 175, perDiemMIE: 85, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'CAI', name: 'U.S. Embassy Cairo', country: 'Egypt', region: 'NEA', status: 'operational', tz: 'UTC+3', perDiemLodging: 160, perDiemMIE: 82, isSampleRate: true, verifiedSource: 'DSSR Chapter 040 (Sample Reference)' },
+  { code: 'WAS', name: 'Department of State HST Main State', country: 'United States', region: 'WHA', status: 'operational', tz: 'UTC-4', perDiemLodging: 258, perDiemMIE: 79, isSampleRate: true, verifiedSource: 'CONUS GSA (Sample Reference)' },
 ];
 
-export const mockSystemServices: SystemService[] = [
+// Subsystem health metrics (Simulated Telemetry Model)
+export const mockSystemServices: (SystemService & { isSimulatedTelemetry?: boolean })[] = [
   {
     id: 'e2-core',
     name: 'E2 Solutions Core Web Engine',
@@ -23,7 +33,8 @@ export const mockSystemServices: SystemService[] = [
     status: 'operational',
     uptime: 99.94,
     latencyMs: 142,
-    description: 'Main web portal for Travel Authorizations, Approvals, and Expense Reports.',
+    description: 'Main web portal for Travel Authorizations, Approvals, and Expense Reports (Simulated Baseline).',
+    isSimulatedTelemetry: true,
   },
   {
     id: 'gfms-sync',
@@ -32,8 +43,9 @@ export const mockSystemServices: SystemService[] = [
     status: 'degraded',
     uptime: 99.81,
     latencyMs: 295,
-    lastIncident: 'Periodic timeout on CAN validation pings during peak hours (14:00-16:00 UTC)',
+    lastIncident: 'Simulated Advisory: Periodic timeout on CAN validation pings during peak hours (14:00-16:00 UTC)',
     description: 'Bridges E2 accounting strips with Global Financial Management System (GFMS) ledger.',
+    isSimulatedTelemetry: true,
   },
   {
     id: 'tmc-sabre',
@@ -43,6 +55,7 @@ export const mockSystemServices: SystemService[] = [
     uptime: 99.98,
     latencyMs: 110,
     description: 'Automates PNR generation, airfare reservations, and CBA ticket fulfillment.',
+    isSimulatedTelemetry: true,
   },
   {
     id: 'dssr-feed',
@@ -51,7 +64,8 @@ export const mockSystemServices: SystemService[] = [
     status: 'operational',
     uptime: 100.0,
     latencyMs: 82,
-    description: 'Auto-ingests monthly foreign per diem & lodging rates from DSSR Chapter 040.',
+    description: 'Sample foreign per diem & lodging rates from DSSR Chapter 040 reference set.',
+    isSimulatedTelemetry: true,
   },
   {
     id: 'adfs-sso',
@@ -61,6 +75,7 @@ export const mockSystemServices: SystemService[] = [
     uptime: 99.95,
     latencyMs: 95,
     description: 'Federated identity provider validating PIV digital signature tokens for submission.',
+    isSimulatedTelemetry: true,
   },
   {
     id: 'nepa-eclass',
@@ -70,10 +85,12 @@ export const mockSystemServices: SystemService[] = [
     uptime: 99.89,
     latencyMs: 198,
     description: 'Validates 26-digit fiscal accounting strings against post budget allocations.',
+    isSimulatedTelemetry: true,
   },
 ];
 
-export const mockTickets: Ticket[] = [
+// Sample Support Desk Tickets (Simulated Scenarios for Testing & Training)
+export const mockTickets: (Ticket & { isSimulatedTicket?: boolean })[] = [
   {
     id: 'TKT-9042',
     title: 'Error 401: Authorization submission blocked on TA-2026-BKK-09412',
@@ -87,6 +104,7 @@ export const mockTickets: Ticket[] = [
     createdAt: '2026-10-17 19:40:12',
     documentRef: 'TA-2026-BKK-09412',
     errorLog: `[ERR-401] AuthSignatureException: Unable to verify routing step 01 (Approving Official: ID_38192). Status=INACTIVE_POST_TRANSFER. Submission aborted.`,
+    isSimulatedTicket: true,
   },
   {
     id: 'TKT-9038',
@@ -101,6 +119,7 @@ export const mockTickets: Ticket[] = [
     createdAt: '2026-10-17 18:15:00',
     documentRef: 'ER-2026-NBO-04198',
     errorLog: `[GFMS-SYNC-502] AccountingInterfaceError: CAN 190240 invalid fiscal strip format for FY26. Expected format: 19-X-1113-190240-2110.`,
+    isSimulatedTicket: true,
   },
   {
     id: 'TKT-9031',
@@ -115,6 +134,7 @@ export const mockTickets: Ticket[] = [
     createdAt: '2026-10-17 17:02:45',
     documentRef: 'USR-TYO-88219',
     errorLog: `Audit: 1 open Travel Advance ($1,200.00) pending voucher reconciliation. Profile deactivation blocked.`,
+    isSimulatedTicket: true,
   },
   {
     id: 'TKT-9027',
@@ -128,6 +148,7 @@ export const mockTickets: Ticket[] = [
     slaMinutesRemaining: 320,
     createdAt: '2026-10-17 15:30:10',
     documentRef: 'TA-2026-LON-10029',
+    isSimulatedTicket: true,
   },
   {
     id: 'TKT-9019',
@@ -141,6 +162,7 @@ export const mockTickets: Ticket[] = [
     slaMinutesRemaining: 95,
     createdAt: '2026-10-17 14:10:00',
     documentRef: 'TKT-BOG-9921',
+    isSimulatedTicket: true,
   },
   {
     id: 'TKT-9005',
@@ -155,6 +177,7 @@ export const mockTickets: Ticket[] = [
     createdAt: '2026-10-17 11:20:00',
     documentRef: 'ER-2026-BKK-08812',
     resolutionNotes: 'Processed Form DS-4043 Actual Expense Allowance endorsement up to 150% of DSSR. Voucher approved and paid.',
+    isSimulatedTicket: true,
   },
 ];
 
@@ -284,6 +307,8 @@ export const mockSops: SOPDocument[] = [
     complianceRef: '14 FAM 510 & FTR §301-70.100',
     content: `### SOP-E2-ADM-042: User Profile Onboarding & Offboarding Lifecycle
 
+> **Reference Notice:** Procedural guide based on 14 FAM 510 and E2 Solutions standard administration practice.
+
 #### 1. Purpose
 Defines standard operating procedures for provisioning, maintaining, and decommissioning user credentials and routing permissions in E2 Solutions for U.S. Mission personnel.
 
@@ -308,6 +333,8 @@ Defines standard operating procedures for provisioning, maintaining, and decommi
     complianceRef: '14 FAM 530 & Department of State Financial Guide',
     content: `### SOP-E2-FIN-109: GFMS Financial Sync & Fiscal Deobligation
 
+> **Reference Notice:** Standard operating template for handling financial sync latency between E2 and GFMS.
+
 #### 1. Scope
 Applies to all Financial Management Officers (FMO) and E2 Administrators managing accounting synchronization failures between E2 Solutions and the Global Financial Management System (GFMS).
 
@@ -324,6 +351,8 @@ Applies to all Financial Management Officers (FMO) and E2 Administrators managin
     category: 'Travel & Per Diem',
     complianceRef: 'DSSR Chapter 040 & 14 FAM 567',
     content: `### SOP-E2-TRV-201: DSSR Per Diem Calculation & AEA Justifications
+
+> **Reference Notice:** Guidance based on DSSR Section 040 and 14 FAM 567. For official rates, visit aoprals.state.gov.
 
 #### 1. General Rule
 Travelers must receive standard DSSR per diem consisting of:

@@ -42,6 +42,18 @@ export interface Ticket {
   resolutionNotes?: string;
 }
 
+export interface ResponseMetadata {
+  source: 'ai_live' | 'knowledge_base_fallback';
+  model?: string;
+  isVerified: boolean;
+  isSimulated: boolean;
+  confidence?: 'high' | 'medium' | 'simulated';
+  disclaimer?: string;
+  policyReferences?: string[];
+  requestId?: string;
+  timestamp?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model' | 'system';
@@ -49,6 +61,7 @@ export interface ChatMessage {
   timestamp: string;
   ticketRef?: string;
   suggestedActions?: string[];
+  metadata?: ResponseMetadata;
 }
 
 export interface DiagnosticStep {

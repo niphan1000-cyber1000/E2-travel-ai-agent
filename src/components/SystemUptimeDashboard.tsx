@@ -126,8 +126,16 @@ export const SystemUptimeDashboard: React.FC<SystemUptimeDashboardProps> = ({
               <Database className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="text-2xl font-bold font-mono text-indigo-400">Chapter 040</div>
-            <p className="text-[11px] text-emerald-400 mt-1">✓ Synced today for 200+ posts</p>
+            <p className="text-[11px] text-amber-300 mt-1">Sample Reference Model (Simulated)</p>
           </div>
+        </div>
+
+        {/* Sandbox Notice Banner */}
+        <div className="mt-4 p-2.5 rounded-lg bg-amber-950/30 border border-amber-900/40 text-[11px] text-amber-300/90 flex items-center justify-between">
+          <span>
+            <strong>Simulated Telemetry Model:</strong> Metrics reflect a baseline architectural model for Tier-1 workflow demonstration. Live agency production infrastructure is not queried.
+          </span>
+          <span className="font-mono text-[10px] text-amber-400 font-semibold uppercase">DEMO SANDBOX</span>
         </div>
       </div>
 

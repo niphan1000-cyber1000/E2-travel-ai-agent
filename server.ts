@@ -1,6 +1,7 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
@@ -9,10 +10,58 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+export const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
-app.use(express.json({ limit: '10mb' }));
+// Security: Restrict JSON payload size to 100kb to prevent payload inflation & memory exhaustion
+app.use(express.json({ limit: '100kb' }));
+
+// Security: Attach unique Request ID & tracking header
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const reqId = (req.headers['x-request-id'] as string) || crypto.randomUUID();
+  (req as any).id = reqId;
+  res.setHeader('X-Request-Id', reqId);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  next();
+});
+
+// Security: In-Memory Sliding Window Rate Limiter
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+const rateLimitMap = new Map<string, RateLimitRecord>();
+
+export function createRateLimiter(windowMs: number = 60000, maxRequests: number = 40) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown-client';
+    const now = Date.now();
+    const record = rateLimitMap.get(ip);
+
+    if (!record || now > record.resetTime) {
+      rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+
+    if (record.count >= maxRequests) {
+      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+      res.setHeader('Retry-After', retryAfter);
+      return res.status(429).json({
+        error: 'Too many requests. Please slow down and try again shortly.',
+        code: 'RATE_LIMIT_EXCEEDED',
+        requestId: (req as any).id,
+      });
+    }
+
+    record.count += 1;
+    next();
+  };
+}
+
+// Apply rate limiter to API routes (40 requests per minute)
+app.use('/api', createRateLimiter(60000, 40));
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({
@@ -24,304 +73,431 @@ const ai = new GoogleGenAI({
   },
 });
 
-const E2_SYSTEM_INSTRUCTION = `You are a Senior IT Analyst and Tier-1 Support Specialist for "E2 Travel Software" (E2 Solutions by CWTSatoTravel) supporting the U.S. Department of State (DOS) and global U.S. Missions (Embassies & Consulates across 200+ posts worldwide).
+export const E2_SYSTEM_INSTRUCTION = `You are a Senior IT Operations Support Specialist for "E2 Travel Software" (E2 Solutions by CWTSatoTravel) supporting the U.S. Department of State (DOS) and global U.S. Missions (over 200 posts worldwide).
 
-Your expertise encompasses:
-1. E2 Travel System Guidance:
-   - Travel Authorizations (TA): Routine temporary duty (TDY), permanent change of station (PCS), post travel authorizations (PTA), emergency travel, amendments, deobligations.
-   - Expense Reports (ER / Travel Vouchers): Lodging + M&IE per diem, actual expense claims, currency exchange conversions, DSSR (Department of State Standardized Regulations), 75% first and last day rule.
+CRITICAL COMPLIANCE & TRANSPARENCY GUIDELINES:
+1. Role & Identity: Provide structured, authoritative technical and procedural guidance for IT analysts, travel administrators, and embassy personnel.
+2. Factuality & Anti-Hallucination:
+   - When diagnosing issues, clearly distinguish between "Hypothesized Root Causes" (สาเหตุที่พบบ่อยตามประวัติระบบ) and "Confirmed Evidence" (ข้อเท็จจริงที่ต้องตรวจในระบบ).
+   - Never claim to have queried a live classified or production government database (such as live GFMS, ADFS, or post travel records) since you are an AI advisory assistant.
+   - Always state that administrative actions must be verified within the official E2 Solutions console and authorized by Post FMO or Certifying Officers.
+3. Domain Knowledge Base:
+   - Travel Authorizations (TA): Routine TDY, PCS, Post Travel Authorizations (PTA), amendments, deobligations.
+   - Expense Reports (ER / Travel Vouchers): Lodging + M&IE per diem, DSSR Section 040 rates, 75% first and last day rule.
    - Ticketing & TMC Integration: CWTSatoTravel GDS Sabre feeds, Centrally Billed Accounts (CBA) vs Individually Billed Accounts (IBA), Fly America Act compliance and Open Skies exceptions.
+   - Financial System: GFMS accounting strips, CAN numbers, NEPA/eClass validation.
    - Regulations: U.S. Federal Travel Regulation (FTR - 41 CFR), DSSR Chapter 100/200, Foreign Affairs Manual (14 FAM 500).
+4. Response Format:
+   - Section 1: [Incident Assessment & Hypothesized Root Causes]
+   - Section 2: [Step-by-Step Diagnostic Verification Checklist (Step 1, Step 2, ...)]
+   - Section 3: [Remediation & Administrative Actions]
+   - Section 4: [Regulatory Compliance & Policy Standards (14 FAM, DSSR, FTR)]
+   - Section 5: [Verification Warning & Post Escalation Path]
+5. Multilingual Support:
+   - When queried in Thai (ภาษาไทย), respond in fluent, highly professional technical government/IT terminology.`;
 
-2. Technical Troubleshooting & Incident Analysis:
-   - Error 401 on TA Submission: Missing active Approving Official in the traveler's routing chain, expired digital certificate / PIV-CAC auth token, inactive travel arranger mapping, or accounting strip validation lock.
-   - Error 502 / Financial Obligation Sync Error: Global Financial Management System (GFMS) interface failure, accounting string format rejected by NEPA/eClass, insufficient funds on CAN/fiscal code.
-   - Routing pool deadlocks: Approver absent without designated alternate, traveler profile missing bureau/section code.
-   - User profile lifecycle: Onboarding (linking HR/GEMS records, assigning roles: Traveler, Arranger, AO, Certifying Officer, FMO), Offboarding (clearing outstanding vouchers, reassigning open TAs, deactivating E2 credentials).
-
-3. Communication & Tone Guidelines:
-   - Structure responses professionally with clear headings:
-     1. [Root Cause Analysis / วิเคราะห์สาเหตุ]
-     2. [Step-by-Step Diagnostic Steps / ขั้นตอนการตรวจสอบทีละขั้น: Step 1, Step 2, ...]
-     3. [Corrective Action / แนวทางแก้ไขทันที]
-     4. [Escalation & Policy Compliance / การส่งต่อและการปฏิบัติตามระเบียบ: 14 FAM, DSSR, FTR]
-   - When communicating in Thai (ภาษาไทย), use fluent, highly professional technical government/IT terminology.
-   - When asked to summarize or write an SOP, provide a structured official USG IT Incident Report format.`;
-
-// In-memory mock response builder when API key is not provided or quota reached
-function generateDomainFallback(prompt: string, language: string = 'th') {
+// Transparent Fallback Engine (Explicitly tagged as reference guidance, not confirmed live telemetry)
+export function generateDomainFallback(prompt: string, language: string = 'th', postContext: string = 'U.S. Embassy Bangkok') {
   const isThai = language === 'th' || /[ก-๙]/.test(prompt);
 
   if (/401|ส่งไม่ได้|submit|authorization|ta/i.test(prompt)) {
     if (isThai) {
-      return `### 🔍 การวิเคราะห์ปัญหา: Error 401 ขณะกดส่ง Travel Authorization (TA) ในระบบ E2 Solutions
+      return `### 📋 แนวทางวิเคราะห์ข้อผิดพลาด: Error 401 ขณะกดส่ง Travel Authorization (TA)
 
-**สถานะ:** Tier-1 Incident Triaged  
-**รหัสข้อผิดพลาด:** \`ERR-401: Unauthorized / Approval Route Validation Failed\`  
-**ระบบที่เกี่ยวข้อง:** E2 Solutions Core / Active Directory ADFS / Routing Engine
+> **⚠️ ประกาศความโปร่งใส (Transparency Notice):** ข้อมูลนี้เป็น **แนวทางมาตรฐานจากฐานความรู้ E2 Solutions (Simulated Reference)** ระบบยังไม่ได้เชื่อมต่อกับฐานข้อมูลสดของ Post ณ ขณะนี้ ผู้ดูแลระบบต้องนำขั้นตอนด้านล่างไปตรวจสอบในคอนโซล E2 จริง
 
 ---
 
-#### 1. สาเหตุที่เป็นไปได้สูงสุด (Root Cause Analysis)
-1. **Routing Chain ขาด Approving Official (AO) ที่ใช้งานได้:** ผู้ใช้งานหรือ Travel Arranger ตั้งค่าสายการอนุมัติ (Routing Pool) ไปยังผู้อนุมัติที่ย้าย Post, ลาพักร้อน หรือโปรไฟล์ถูกระงับ
-2. **PIV / CAC Token หรือ Session สิ้นอายุ:** ใบรับรองดิจิทัลสำหรับลงนามอิเล็กทรอนิกส์ (Digital Signature) หลุดการเชื่อมต่อกับระบบ ADFS/Single Sign-On
-3. **การเชื่อมโยง Accounting Strip ขัดข้อง:** สายงบประมาณ (Fund Citation) ในแถบ Accounting ไม่ตรงกับ Fiscal Year ปัจจุบัน หรือยังไม่ผ่านการ Verify จากระบบ GFMS
+#### 1. สาเหตุที่เป็นไปได้ตามสถิติของระบบ (Hypothesized Root Causes)
+1. **Routing Chain ขาด Approving Official (AO) ที่พร้อมใช้งาน:** สายการอนุมัติของผู้เดินทางอาจมีผู้อนุมัติที่ย้าย Post, ลาพักผ่อน, หรือสิทธิ์การอนุมัติในระบบสิ้นอายุ
+2. **Session หรือ PIV/CAC Certificate สิ้นอายุ:** โทเค็นการยืนยันตัวตนดิจิทัลสำหรับลงนามอิเล็กทรอนิกส์ (Digital Signature) หลุดการเชื่อมโยงกับระบบ ADFS/Single Sign-On
+3. **Accounting Line ยังไม่ผ่านการตรวจสอบ:** รหัสงบประมาณ (Fund Citation) ในแท็บ Accounting ยังไม่ได้รับการตรวจสอบความถูกต้อง (Validate) กับตารางงบประมาณประจำปีงบประมาณปัจจุบัน
 
 ---
 
-#### 2. ขั้นตอนการตรวจสอบและแก้ไขทีละขั้น (Step-by-Step Troubleshooting)
+#### 2. ขั้นตอนการตรวจสอบทีละขั้น (Step-by-Step Diagnostic Verification)
+* **Step 1: ตรวจสอบสายการอนุมัติ (Routing List)**
+  * เข้าไปที่ **Admin > User Profiles > ค้นหาชื่อผู้เดินทาง > แท็บ Routing Lists**
+  * ตรวจสอบว่าผู้อนุมัติระดับ Tier 1 (Supervisor/AO) และ Tier 2 (FMO/Certifying Officer) มีสถานะเป็น **Active** และมีการกำหนดสิทธิ์สำหรับ Post ปัจจุบัน
+  * หาก AO ตัวจริงไม่อยู่ ให้กำหนด **Alternate Approver** ที่มีอำนาจลงนามแทน
 
-* **Step 1: ตรวจสอบ Routing List ของผู้เดินทาง**
-  * ไปที่ **Admin / Profile Management** > ค้นหาชื่อ Traveler
-  * ตรวจสอบแท็บ **Routing Lists** ว่ามีชื่อผู้อนุมัติระดับ Tier 1 (Supervisor/AO) และ Tier 2 (FMO/Certifying Officer) ครบถ้วนและมีสถานะ **Active** หรือไม่
-  * หาก AO ติดราชการ ให้กำหนด **Alternate Approver** ในระบบทันที
-
-* **Step 2: ตรวจสอบสถานะ Digital Signature และ Browser Session**
+* **Step 2: รีเฟรช Browser Session และ Digital Signature**
   * ให้ผู้ใช้งานออกจากระบบ E2 (Sign Out)
-  * ล้างเบราว์เซอร์แคช (Ctrl + Shift + Delete) หรือเปิดโหมด Incognito
-  * เสียบ PIV/CAC Card ใหม่ ตรวจสอบว่าใบรับรองยืนยันตัวตน (Authentication Certificate) ยังไม่หมดอายุ
+  * เคลียร์ SSL State/Browser Cache หรือเปิดหน้าต่างเบราว์เซอร์ใหม่
+  * ใส่บัตร PIV/CAC เพื่อยืนยันตัวตนใหม่ก่อนกดลงนามและส่งเอกสาร
 
-* **Step 3: ตรวจสอบแถบ Accounting & Estimation**
-  * เข้าไปที่หน้าเอกสาร TA ดังกล่าว > คลิกแท็บ **Accounting**
-  * กดปุ่ม **"Validate Accounting Strip"** เพื่อให้ระบบวิ่งไปตรวจกับ NEPA/GFMS Interface
-  * หากพบตัวอักษรสีแดงแจ้งเตือน Fund Code ไม่ถูกต้อง ให้ประสาน Post Financial Management Officer (FMO)
+* **Step 3: ตรวจสอบแถบ Accounting Strip**
+  * เปิดเอกสาร TA ที่ติดปัญหา > ไปที่แท็บ **Accounting**
+  * กดปุ่ม **"Validate Accounting Codes"** เพื่อทดสอบการเชื่อมโยงกับฐานงบประมาณ
+  * หากมีแจ้งเตือนสีแดงเกี่ยวกับ CAN Code ให้ประสานเจ้าหน้าที่การเงินประจำ Post (Post FMO)
 
 ---
 
-#### 3. วิธีแก้ไขทันที (Immediate Resolution)
-หากตรวจสอบพบว่า Routing List ว่างเปล่า ให้ Travel Administrator หรือ Arranger เลือก **"Assign Default Post Routing Template"** ประจำ Post (เช่น \`POST-BKK-STANDARD-TA\`) จากนั้นกด **Save** และให้ผู้ใช้ลองกด Submit อีกครั้ง
-
-#### 4. แผนการส่งต่อ (Escalation Path)
-หากทำตาม Step 1-3 แล้วยังพบ Error 401 เดิม ให้เปิด Ticket ส่งต่อ **Tier-2 E2 Global Helpdesk (CWTSatoTravel)** พร้อมแนบ:
-- Document Number (เช่น \`TA-2026-BKK-09412\`)
-- Traveler Employee ID
-- แคปหน้าจอ Log Error Code และเวลาที่เกิดเหตุ (UTC)`;
+#### 3. การอ้างอิงระเบียบและการส่งต่อ (Policy Reference & Escalation)
+- **มาตรฐานระเบียบ:** 14 FAM 560 (Travel Authorizations) และ Federal Travel Regulation (FTR) §301-70
+- **หากตรวจสอบทั้ง 3 ขั้นตอนแล้วยังพบปัญหา:** ให้เปิด Ticket ส่งต่อไปยัง **CWTSato Global Helpdesk (Tier-2)** พร้อมแนบ TA Document ID, Traveler SEID และเวลาที่เกิดข้อผิดพลาด`;
     } else {
-      return `### 🔍 Issue Analysis: Error 401 Submitting Travel Authorization (TA) in E2 Solutions
+      return `### 📋 Diagnostic Guidance: Error 401 Submitting Travel Authorization (TA)
 
-**Status:** Tier-1 Incident Triaged  
-**Error Code:** \`ERR-401: Unauthorized / Approval Route Validation Failed\`  
-**Affected Subsystem:** E2 Solutions Core / Active Directory ADFS / Routing Engine
+> **⚠️ Transparency Notice:** This response is generated from the **E2 Solutions Reference Knowledge Base (Simulated)**. Live embassy user records or production financial databases were not queried. Administrative verification is required before making changes.
 
 ---
 
-#### 1. Probable Root Causes
-1. **Invalid or Incomplete Routing Chain:** The selected Routing List contains an Approving Official (AO) who is inactive, reassigned, or lacking delegation of authority.
-2. **Expired Digital Signature / PIV Token:** The cryptographic signing token failed to validate against the DOS PKI infrastructure during electronic signature submission.
-3. **Accounting Line Validation Lock:** The financial obligation accounting string has an unverified CAN or fiscal year mismatch against GFMS.
+#### 1. Hypothesized Root Causes
+1. **Invalid or Inactive Approving Official (AO):** The traveler's designated routing chain references a supervisor who has departed Post, is on leave, or lacks active signature delegation.
+2. **Expired PIV/CAC Session Token:** The digital signing session failed PKI certificate validation with the agency federated authentication provider (ADFS).
+3. **Unvalidated Accounting Line:** The fiscal year funding string has not been validated against the chart of accounts.
 
 ---
 
-#### 2. Step-by-Step Diagnostic & Remediation Steps
+#### 2. Step-by-Step Verification Checklist
+* **Step 1: Audit Routing Chain Assignment**
+  * In E2 Admin, navigate to **User Profiles > [Traveler Name] > Routing Lists**.
+  * Confirm that both Level 1 (Approving Official) and Level 2 (Certifying Officer) show **ACTIVE** status.
+  * If the primary approver is unavailable, assign a designated **Alternate Approver** with effective dates.
 
-* **Step 1: Audit Traveler Routing Chain**
-  * Navigate to **Administration > User Profiles > [Traveler Name] > Routing Lists**.
-  * Verify that both the Level 1 (Approving Official) and Level 2 (Financial Certifier) are marked **ACTIVE**.
-  * If the primary AO is on leave, set up an authorized **Alternate Approver** with effective dates.
-
-* **Step 2: Refresh PIV/CAC Certificate & Clear Auth Cache**
-  * Direct traveler to log out of E2 completely.
-  * Re-insert PIV card, launch a clean browser session (or private browsing window), and re-authenticate via ADFS SSO.
+* **Step 2: Refresh Authentication State**
+  * Direct traveler to log out of E2, clear browser SSL cache, re-insert PIV card, and initiate a fresh authenticated session.
 
 * **Step 3: Validate Accounting Strip**
-  * Open the pending TA > Navigate to the **Accounting** tab.
-  * Click **"Validate Accounting Codes"**. Confirm green checkmark indicator before re-attempting submission.
+  * Open the pending TA > Navigate to the **Accounting** tab > Click **"Validate Accounting Codes"**.
+  * Ensure all CAN codes and fiscal year allocations clear validation.
 
 ---
 
-#### 3. Escalation Protocol
-If the issue persists after updating the routing chain, escalate to **Tier-2 CWTSato E2 Vendor Support**:
-- Document Identifier (e.g., \`TA-2026-BKK-09412\`)
-- Exact Timestamp (UTC) & Browser build version
-- Screenshot of the console network payload.`;
+#### 3. Regulatory Standards & Escalation
+- **Compliance Standard:** 14 FAM 560 & FTR §301-70
+- **Escalation Protocol:** If unresolvable locally, escalate to Tier-2 CWTSato Vendor Helpdesk with the TA Document Number and timestamp.`;
     }
   }
 
   if (/onboard|offboard|user|แอดมิน|admin|profile/i.test(prompt)) {
     if (isThai) {
-      return `### 📋 คู่มือปฏิบัติการมาตรฐาน (SOP): User Onboarding & Offboarding สำหรับแอดมินระบบ E2 Travel
+      return `### 📋 แนวทางปฏิบัติมาตรฐาน (Reference SOP): User Onboarding & Offboarding ในระบบ E2 Travel
 
-**รหัสเอกสาร:** \`SOP-E2-ADM-042\`  
-**หน่วยงาน:** U.S. Mission Global Operations / Financial & Travel Support  
-**การปฏิบัติตามระเบียบ:** 14 FAM 500 & Federal Travel Regulation (FTR)
+> **⚠️ ประกาศความโปร่งใส:** เอกสารนี้จัดทำขึ้นตามแนวทาง 14 FAM 510 และมาตรฐานคู่มือ E2 Administrator เพื่อใช้เป็นแบบร่างอ้างอิงการปฏิบัติงานประจำ Post
 
 ---
 
 #### ส่วนที่ 1: ขั้นตอน User Onboarding (การรับเจ้าหน้าที่เข้าใหม่ในระบบ)
-
-* **Step 1: ตรวจสอบข้อมูลตั้งต้นจาก HR/GEMS**
-  * รับแบบฟอร์มขอสิทธิ์ใช้งาน E2 ที่ผ่านการอนุมัติจาก Supervisory Office
-  * ดึงรหัสพนักงาน (Employee ID / SEID) และ Post Code ประจำสถานทูต/สถานกงสุล
-
-* **Step 2: สร้างโปรไฟล์ใน E2 Solutions User Management**
-  * เข้าสู่ระบบ E2 ในฐานะ **Travel Administrator**
-  * ไปที่ **Admin > User Profiles > Create New Profile**
-  * ระบุข้อมูลสำคัญ:
-    - **Full Legal Name** (ตรงตามหนังสือเดินทางราชการ Official/Diplomatic Passport)
-    - **Official Email** (\`@state.gov\`)
-    - **Default Routing List:** กำหนดตามหน่วยงาน/Section ของ Post
-    - **Role Assignment:** เลือกระดับสิทธิ์ (Traveler, Travel Arranger, Approving Official หรือ FMO Certifier)
-
-* **Step 3: ผูกบัญชีการชำระเงิน (CBA/IBA Integration)**
-  * ตรวจสอบว่าเจ้าหน้าที่ถือบัตรเครดิตราชการ **Government Travel Charge Card (IBA)** หรือไม่
-  * หากไม่มี ให้กำหนดบัญชีส่วนกลาง **Centrally Billed Account (CBA)** เป็นค่าเริ่มต้นสำหรับตั๋วเครื่องบิน
-  * บันทึกข้อมูลและส่งอีเมลแจ้งขั้นตอน First-time Login แก่ผู้ใช้งาน
+1. **ตรวจสอบเอกสารและสิทธิ์ (HR / Authorization Verification):**
+   - ตรวจสอบแบบฟอร์มขอสิทธิ์ใช้งานที่ลงนามโดยหัวหน้าหน่วยงาน (Section Head)
+   - ยืนยันรหัสประจำตัวพนักงาน (SEID/Employee ID) และ Post Code ประจำสถานทูต
+2. **สร้างโปรไฟล์ในระบบ E2 Administrator:**
+   - เข้า **Admin > User Profiles > Create New Profile**
+   - กรอกชื่อ-นามสกุลตามหนังสือเดินทางราชการ (Diplomatic/Official Passport) อย่างเคร่งครัด
+   - กำหนด Official Email (\`@state.gov\`)
+   - เลือก Role ตามหน้าที่: \`Traveler\`, \`Travel Arranger\`, \`Approving Official (AO)\`, หรือ \`Certifying Officer\`
+3. **ผูกบัญชีการชำระเงินและ Routing Template:**
+   - ผูกบัตรเครดิตราชการส่วนบุคคล (IBA) หรือกำหนดให้ใช้บัญชีส่วนกลาง (CBA) สำหรับตั๋วเครื่องบิน
+   - กำหนด Default Routing Chain ประจำหน่วยงาน
 
 ---
 
 #### ส่วนที่ 2: ขั้นตอน User Offboarding (การจำหน่ายเจ้าหน้าที่ออกจากระบบ / ย้าย Post)
-
-* **Step 1: ตรวจสอบและเคลียร์เอกสารการเดินทางคงค้าง (Outstanding Travel Review)**
-  * ค้นหา TAs ที่ยังอยู่ในสถานะ \`Pending Approval\` หรือ \`Approved without Voucher\`
-  * ค้นหา Expense Reports (Vouchers) ที่ยังไม่ได้จ่ายเงิน หรือมีหนี้คงค้าง Travel Advance
-  * *ข้อกำหนด:* ไม่อนุญาตให้ปิดโปรไฟล์จนกว่าค่าใช้จ่ายทั้งหมดจะถูกกระทบยอด (Reconciled) เสร็จสิ้น
-
-* **Step 2: โอนย้ายหรือมอบหมายเอกสารที่ค้างอยู่ (Reassignment)**
-  * หากมี TA ที่ยังไม่เสร็จสิ้น ให้ทำการ Re-route หรือยกเลิก (Deobligate) ในระบบ E2 และแจ้ง FMO ปรับยอดใน GFMS
-
-* **Step 3: ปิดการใช้งานโปรไฟล์ (Deactivation)**
-  * เปลี่ยนสถานะ Profile เป็น **"INACTIVE / SEPARATED"**
-  * ลบชื่อออกจาก Routing Pool เพื่อป้องกันไม่ให้เอกสารของผู้อื่นติดค้าง
-  * บันทึก Audit Log วันที่ดำเนินการเพื่อความปลอดภัยและพร้อมรับการตรวจสอบ (Audit-Ready)`;
+1. **ตรวจสอบภาระผูกพันคงค้าง (Outstanding Travel Audit):**
+   - ตรวจสอบว่าไม่มี Travel Authorizations (TA) ที่ค้างการอนุมัติหรือยังไม่ได้ทำ Voucher
+   - ยืนยันว่าไม่มีเงินทดรองจ่าย (Travel Advance) คงค้าง ยอดเงินต้องเป็น **$0.00**
+2. **โอนย้ายเอกสารและสายการอนุมัติ (Reassignment of Pending Workflows):**
+   - ปรับสายการอนุมัติให้เอกสารของผู้เดินทางท่านอื่นไม่ติดค้างอยู่ที่เจ้าหน้าที่ที่กำลังจะย้าย Post
+3. **ปรับสถานะโปรไฟล์ (Profile Deactivation):**
+   - เปลี่ยนสถานะโปรไฟล์เป็น **"INACTIVE / SEPARATED"**
+   - ถอนสิทธิ์ Digital Signature และเก็บ Audit Record สำหรับการตรวจสอบย้อนหลัง`;
     } else {
-      return `### 📋 Standard Operating Procedure (SOP): E2 Travel User Onboarding & Offboarding
+      return `### 📋 Reference Operating Procedure: User Onboarding & Offboarding Lifecycle
 
-**Document Ref:** \`SOP-E2-ADM-042\`  
-**Compliance Standard:** 14 FAM 500, DSSR, and Federal Travel Regulation (FTR)
+> **⚠️ Transparency Notice:** This procedural guideline is based on 14 FAM 510 and E2 Solutions standard administration manuals for mission operational reference.
 
 ---
 
 #### Part 1: User Onboarding Workflow
-1. **Verification of HR / GEMS Record:** Obtain supervisor-approved Form DS-XXXX with confirmed Employee ID, Post code, and Fiscal CAN assignment.
-2. **Profile Generation in E2 Solutions Admin:**
-   - Access **Admin > User Management > New Profile**.
-   - Input legal name strictly matching official diplomatic passport.
-   - Assign appropriate organizational roles: \`Traveler\`, \`Travel Arranger\`, \`Approving Official (AO)\`, or \`Certifying Officer\`.
-3. **Card & Billing Association:**
-   - Link approved Government Travel Charge Card (IBA) or map default Post Centrally Billed Account (CBA).
-   - Assign appropriate default Routing Template for the bureau/post section.
+1. **Authorization Verification:** Obtain supervisor-approved access request form with verified Employee ID (SEID) and Post bureau assignment.
+2. **Profile Generation:**
+   - Access **Admin > User Profiles > Create Profile**.
+   - Input legal name matching official passport.
+   - Assign appropriate roles: \`Traveler\`, \`Travel Arranger\`, \`Approving Official\`, or \`Certifying Officer\`.
+3. **Card & Billing Configuration:**
+   - Map Government Travel Charge Card (IBA) or configure Centrally Billed Account (CBA) default.
+   - Assign Post default routing template.
 
 ---
 
 #### Part 2: User Offboarding Workflow
-1. **Outstanding Document Audit:** Ensure zero un-voucherized Travel Authorizations and zero unpaid Travel Advances exist.
-2. **Document & Delegation Reassignment:** Transfer open drafts or pending approval queues to the designated replacement officer.
-3. **Profile Termination:** Mark account status to \`INACTIVE\`, revoke digital signing certificates, and remove user from all active routing pools.`;
+1. **Outstanding Account Audit:** Verify that all Travel Authorizations are voucherized and all Travel Advances show a reconciled $0.00 balance.
+2. **Workflow Reassignment:** Remove user from active routing pools and reassign any pending document queues.
+3. **Account Deactivation:** Set status to \`INACTIVE\`, revoke digital signature privileges, and log audit trail.`;
     }
   }
 
-  // General helpful response
-  return `### 🛡️ E2 Travel Solutions Tier-1 Operations Specialist Response
+  // General helpful domain fallback
+  return `### 🛡️ E2 Travel Solutions Support Specialist Response
 
-**Post Context:** Global U.S. Mission Support  
-**Regulation Standard:** 14 FAM 500 / 41 CFR FTR / DSSR Chapter 100/200
+> **⚠️ Operational Notice:** Operating in **Procedural Reference Mode**. Guidance is formulated based on Department of State travel regulations (14 FAM 500, DSSR 040, and 41 CFR FTR). Live agency databases were not queried.
 
 ---
 
 #### 1. Incident Assessment
-คำถามของคุณได้รับการบันทึกและประมวลผลโดย E2 Tier-1 Support Specialist สำหรับระบบการเดินทางของกระทรวงการต่างประเทศสหรัฐฯ (DOS E2 Solutions):
-- รายละเอียด: "${prompt.slice(0, 100)}"
+- **Post Context:** ${postContext}
+- **Inquiry Focus:** ${prompt.slice(0, 120)}...
 
-#### 2. คำแนะนำและขั้นตอนการดำเนินงานมาตรฐาน (Standard Action Plan)
-1. **ตรวจสอบความสอดคล้องกับระเบียบ (Policy Compliance):** ตรวจสอบว่าเอกสารดังกล่าวเป็นไปตามข้อกำหนด 14 FAM 500 (Foreign Affairs Manual) และระเบียบ DSSR Per Diem ประจำเมืองปลายทาง
-2. **การประสานงานระบบการเงิน (Financial Reconciliation):** ตรวจสอบสถานะการเชื่อมต่อกับ GFMS (Global Financial Management System) และยืนยันว่า CAN Code มีงบประมาณผูกพันเพียงพอ
-3. **การตรวจสอบ Routing Chain:** ตรวจสอบให้แน่ใจว่าทั้ง Travel Arranger และ Approving Official อยู่ในสถานะ Active และไม่มีเงื่อนไขความขัดแย้งทางผลประโยชน์
+#### 2. Recommended Action Plan
+1. **Compliance Check (14 FAM 500):** Verify whether the document complies with standard mission travel policies, including appropriate per diem caps and advance authorization requirements.
+2. **Financial Coordination (GFMS):** Coordinate with the Post Financial Management Officer (FMO) if accounting strip validation fails.
+3. **Administrative Routing Check:** Verify that both the Arranger and Approving Official are active in the traveler's routing pool.
 
-#### 3. ช่องทางการสนับสนุนเพิ่มเติม
-หากต้องการให้วิเคราะห์ Error Log เฉพาะเจาะจง หรือสร้างรายงานสรุปปัญหา (Incident Report) สามารถวาง Error Code หรือคลิกปุ่ม **"สร้างรายงานสรุปอัตโนมัติ"** ได้ทันที`;
+#### 3. Next Steps
+To generate an official summary for escalation or local record, click the **"Auto-Generate Incident Resolution Report"** button above.`;
+}
+
+// Input Validation Helper for Chat
+export function validateChatInput(body: any): { valid: boolean; error?: string; data?: { messages: any[]; postContext: string; language: string } } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Request body must be a valid JSON object' };
+  }
+
+  const { messages, postContext = 'U.S. Embassy Bangkok [BKK]', language = 'th' } = body;
+
+  if (!messages || !Array.isArray(messages)) {
+    return { valid: false, error: 'Field "messages" must be an array' };
+  }
+
+  if (messages.length === 0) {
+    return { valid: false, error: 'Field "messages" cannot be empty' };
+  }
+
+  if (messages.length > 20) {
+    return { valid: false, error: 'Conversation history exceeds maximum allowed limit (20 messages)' };
+  }
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== 'object') {
+      return { valid: false, error: `Message at index ${i} must be an object` };
+    }
+
+    if (msg.role !== 'user' && msg.role !== 'model') {
+      return { valid: false, error: `Invalid role "${msg.role}" at message ${i}. Must be "user" or "model"` };
+    }
+
+    if (typeof msg.content !== 'string' || msg.content.trim().length === 0) {
+      return { valid: false, error: `Message content at index ${i} must be a non-empty string` };
+    }
+
+    if (msg.content.length > 4000) {
+      return { valid: false, error: `Message content at index ${i} exceeds maximum allowed length of 4000 characters` };
+    }
+  }
+
+  const validLangs = ['th', 'en', 'es', 'fr'];
+  const sanitizedLang = validLangs.includes(String(language).toLowerCase()) ? String(language).toLowerCase() : 'th';
+  const sanitizedPostContext = String(postContext).slice(0, 100).replace(/[^\w\s\-\.\[\],]/gi, '');
+
+  return {
+    valid: true,
+    data: {
+      messages,
+      postContext: sanitizedPostContext,
+      language: sanitizedLang,
+    },
+  };
+}
+
+// Input Validation Helper for SOP Report
+export function validateSopInput(body: any): { valid: boolean; error?: string; data?: { topic: string; details: string; ticketId: string; post: string; language: string } } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Request body must be a JSON object' };
+  }
+
+  const { topic, details, ticketId, post, language = 'th' } = body;
+
+  if (typeof topic !== 'string' || topic.trim().length === 0) {
+    return { valid: false, error: 'Field "topic" is required and must be a non-empty string' };
+  }
+  if (topic.length > 200) {
+    return { valid: false, error: 'Field "topic" cannot exceed 200 characters' };
+  }
+
+  if (typeof details !== 'string' || details.trim().length === 0) {
+    return { valid: false, error: 'Field "details" is required and must be a non-empty string' };
+  }
+  if (details.length > 4000) {
+    return { valid: false, error: 'Field "details" cannot exceed 4000 characters' };
+  }
+
+  const sanitizedTicketId = ticketId && typeof ticketId === 'string'
+    ? ticketId.slice(0, 30).replace(/[^a-zA-Z0-9\-_]/g, '')
+    : 'INC-E2-' + Math.floor(100000 + Math.random() * 900000);
+
+  const sanitizedPost = post && typeof post === 'string'
+    ? post.slice(0, 100).replace(/[^\w\s\-\.,]/g, '')
+    : 'U.S. Embassy Bangkok';
+
+  const validLangs = ['th', 'en', 'es', 'fr'];
+  const sanitizedLang = validLangs.includes(String(language).toLowerCase()) ? String(language).toLowerCase() : 'th';
+
+  return {
+    valid: true,
+    data: {
+      topic: topic.trim().slice(0, 200),
+      details: details.trim().slice(0, 4000),
+      ticketId: sanitizedTicketId,
+      post: sanitizedPost,
+      language: sanitizedLang,
+    },
+  };
 }
 
 // API: AI Chat Handler
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { messages, postContext = 'U.S. Embassy Bangkok [BKK]', language = 'th' } = req.body;
+app.post('/api/chat', async (req: Request, res: Response) => {
+  const reqId = (req as any).id;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Messages array is required' });
+  const validation = validateChatInput(req.body);
+  if (!validation.valid || !validation.data) {
+    return res.status(400).json({
+      error: validation.error || 'Invalid request payload',
+      code: 'VALIDATION_ERROR',
+      requestId: reqId,
+    });
+  }
+
+  const { messages, postContext, language } = validation.data;
+  const latestUserMessage = messages[messages.length - 1]?.content || '';
+
+  // If API key is available, call Gemini API
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const contents = messages.map((m: { role: 'user' | 'model'; content: string }) => ({
+        role: m.role,
+        parts: [{ text: m.content }],
+      }));
+
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents,
+        config: {
+          systemInstruction: `${E2_SYSTEM_INSTRUCTION}\n\nCurrent Operational Context:
+- Active Mission Post: ${postContext}
+- Preferred Interaction Language: ${language}
+- Timestamp: ${new Date().toISOString()}`,
+          temperature: 0.25,
+        },
+      });
+
+      const reply = response.text || '';
+      return res.json({
+        reply,
+        metadata: {
+          source: 'ai_live',
+          model: GEMINI_MODEL,
+          isVerified: false,
+          isSimulated: true,
+          confidence: 'high',
+          disclaimer: 'Generated by AI advisory assistant based on 14 FAM & DSSR regulations. Administrative actions require verification in production E2 Solutions.',
+          policyReferences: ['14 FAM 500', 'DSSR Chapter 040', '41 CFR 301 (FTR)'],
+          requestId: reqId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (geminiError: any) {
+      console.warn(`[${reqId}] Gemini API call returned error, serving domain fallback:`, geminiError?.message || geminiError);
+      const fallbackText = generateDomainFallback(latestUserMessage, language, postContext);
+      return res.json({
+        reply: fallbackText,
+        metadata: {
+          source: 'knowledge_base_fallback',
+          model: 'e2-reference-engine-offline',
+          isVerified: false,
+          isSimulated: true,
+          confidence: 'simulated',
+          disclaimer: 'Served from offline reference knowledge repository due to live API latency. Please review steps in the official E2 Administration Console.',
+          policyReferences: ['14 FAM 560', 'DSSR Chapter 040', 'FTR §301-70'],
+          requestId: reqId,
+          timestamp: new Date().toISOString(),
+        },
+      });
     }
-
-    const latestUserMessage = messages[messages.length - 1]?.content || '';
-
-    // If API key is available, call Gemini API
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const contents = messages.map((m: { role: string; content: string }) => ({
-          role: m.role === 'user' ? 'user' : 'model',
-          parts: [{ text: m.content }],
-        }));
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction: `${E2_SYSTEM_INSTRUCTION}\n\nCurrent Operational Context:
-- Active Post: ${postContext}
-- Preferred Interaction Language: ${language} (Ensure professional terminology in this language)
-- Date: ${new Date().toISOString()}`,
-            temperature: 0.3,
-          },
-        });
-
-        const reply = response.text || '';
-        return res.json({ reply });
-      } catch (geminiError: any) {
-        console.warn('Gemini API call returned error, serving domain fallback:', geminiError?.message);
-        const fallbackText = generateDomainFallback(latestUserMessage, language);
-        return res.json({ reply: fallbackText, note: 'Served via Tier-1 E2 Knowledge Engine' });
-      }
-    } else {
-      // Offline / Keyless domain fallback
-      const fallbackText = generateDomainFallback(latestUserMessage, language);
-      return res.json({ reply: fallbackText, note: 'Served via Tier-1 E2 Knowledge Engine' });
-    }
-  } catch (error: any) {
-    console.error('Server error in /api/chat:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+  } else {
+    // Keyless reference knowledge engine fallback
+    const fallbackText = generateDomainFallback(latestUserMessage, language, postContext);
+    return res.json({
+      reply: fallbackText,
+      metadata: {
+        source: 'knowledge_base_fallback',
+        model: 'e2-reference-engine-offline',
+        isVerified: false,
+        isSimulated: true,
+        confidence: 'simulated',
+        disclaimer: 'Served from offline reference knowledge repository (No API key attached). Please review steps in the official E2 Administration Console.',
+        policyReferences: ['14 FAM 560', 'DSSR Chapter 040', 'FTR §301-70'],
+        requestId: reqId,
+        timestamp: new Date().toISOString(),
+      },
+    });
   }
 });
 
 // API: Generate Incident Resolution Report / SOP
-app.post('/api/generate-sop-report', async (req, res) => {
-  try {
-    const { topic, details, ticketId = 'INC-E2-' + Math.floor(100000 + Math.random() * 900000), post = 'U.S. Embassy Bangkok', language = 'th' } = req.body;
+app.post('/api/generate-sop-report', async (req: Request, res: Response) => {
+  const reqId = (req as any).id;
 
-    const prompt = `Generate an official, rigorous U.S. Mission E2 Travel Software Incident Resolution & SOP Summary Report.
+  const validation = validateSopInput(req.body);
+  if (!validation.valid || !validation.data) {
+    return res.status(400).json({
+      error: validation.error || 'Invalid request payload',
+      code: 'VALIDATION_ERROR',
+      requestId: reqId,
+    });
+  }
+
+  const { topic, details, ticketId, post, language } = validation.data;
+
+  const prompt = `Generate an official U.S. Mission E2 Travel Software Incident Resolution & SOP Summary Report.
 Ticket Number: ${ticketId}
 Assigned Post: ${post}
-Topic / Problem: ${topic}
-Details / Diagnostic Log: ${details}
+Topic / Incident: ${topic}
+Diagnostic Log / Notes: ${details}
 Language: ${language === 'th' ? 'Thai with professional government IT technical terms' : 'English'}
 
 Format strictly with sections:
 1. Executive Incident Summary & Metadata (Ticket ID, Timestamp, Priority, Post, System: E2 Solutions / GFMS / Sabre GDS)
-2. Root Cause Analysis (Technical diagnostic)
-3. Step-by-Step Remediation Actions Taken (Step 1, Step 2, Step 3)
+2. Hypothesized Root Cause Analysis (Technical diagnostic)
+3. Step-by-Step Remediation Actions Recommended (Step 1, Step 2, Step 3)
 4. Regulatory & Compliance Verification (14 FAM 500, DSSR, 41 CFR FTR)
-5. Preventative Standard Operating Procedure (SOP) Recommendation for Post Administrators`;
+5. Preventative Standard Operating Procedure (SOP) Recommendation for Post Administrators
+6. Verification Disclaimer (Emphasizing that changes must be approved by authorized FMO/AO personnel)`;
 
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
-            systemInstruction: E2_SYSTEM_INSTRUCTION,
-            temperature: 0.2,
-          },
-        });
-        return res.json({ report: response.text });
-      } catch (err: any) {
-        console.warn('Gemini error generating SOP, using fallback generator:', err?.message);
-      }
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction: E2_SYSTEM_INSTRUCTION,
+          temperature: 0.2,
+        },
+      });
+
+      return res.json({
+        report: response.text,
+        metadata: {
+          source: 'ai_live',
+          model: GEMINI_MODEL,
+          requestId: reqId,
+        },
+      });
+    } catch (err: any) {
+      console.warn(`[${reqId}] Gemini error generating SOP, using fallback generator:`, err?.message || err);
     }
+  }
 
-    // Fallback template
-    const fallbackReport = `### 📑 U.S. MISSION E2 TRAVEL SOFTWARE - INCIDENT RESOLUTION REPORT
+  // Standardized Reference Template Fallback
+  const fallbackReport = `### 📑 U.S. MISSION E2 TRAVEL SOFTWARE - INCIDENT RESOLUTION REPORT (REFERENCE)
 **Ticket ID:** \`${ticketId}\`  
 **Location:** ${post}  
 **Classification:** SENSITIVE BUT UNCLASSIFIED (SBU) - OFFICIAL USE ONLY  
 **System Affected:** E2 Solutions Core / GFMS Interface / CWTSato GDS  
 **Date/Time Generated:** ${new Date().toUTCString()}  
+**Notice:** Generated from procedural reference repository. Actions must be authorized by Post FMO.
 
 ---
 
@@ -331,15 +507,15 @@ Format strictly with sections:
 - **Initial Symptom:** Technical blockage preventing operational travel workflow processing.
 
 #### 2. Root Cause Analysis (RCA)
-Comprehensive diagnostic indicates a synchronization latency or authorization parameter mismatch between the E2 travel routing engine and the downstream financial accounting interface. Key triggers identified:
+Diagnostic assessment indicates a synchronization or authorization parameter mismatch between the E2 travel routing engine and the downstream financial accounting interface. Key triggers identified:
 1. Routing configuration missing authorized signature delegation.
-2. Interface timeout during real-time fund reservation ping.
+2. Interface timeout during fund reservation validation ping.
 
-#### 3. Step-by-Step Remediation Action Log
-- **Step 1:** Accessed E2 Administration Console > Profile & Routing List audit.
-- **Step 2:** Verified active status of primary Approving Official (AO) and Certifying Officer.
-- **Step 3:** Executed manual accounting validation ping against GFMS interface.
-- **Step 4:** Re-initialized browser session with fresh PIV/CAC token authentication.
+#### 3. Step-by-Step Remediation Action Checklist
+- **Step 1:** Access E2 Administration Console > User Profile & Routing List audit.
+- **Step 2:** Verify active status of primary Approving Official (AO) and Certifying Officer.
+- **Step 3:** Execute manual accounting validation ping against GFMS interface.
+- **Step 4:** Re-initialize browser session with fresh PIV/CAC token authentication.
 
 #### 4. Compliance & Policy Reference
 - **14 FAM 500:** Department of State Travel Regulations verified.
@@ -349,10 +525,14 @@ Comprehensive diagnostic indicates a synchronization latency or authorization pa
 #### 5. Post Administrator SOP Recommendation
 To prevent recurrence at ${post}, administrators must implement monthly routing list hygiene audits, ensuring that personnel departing Post or transitioning roles are decommissioned from approval pools at least 5 business days prior to transfer.`;
 
-    return res.json({ report: fallbackReport });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Failed to generate report' });
-  }
+  return res.json({
+    report: fallbackReport,
+    metadata: {
+      source: 'knowledge_base_fallback',
+      model: 'e2-reference-engine-offline',
+      requestId: reqId,
+    },
+  });
 });
 
 // Setup dev middleware or production static
@@ -372,8 +552,12 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[E2 Mission Support Server] listening on http://0.0.0.0:${PORT}`);
+    console.log(`[E2 Mission Support Server] listening on http://0.0.0.0:${PORT} (Model: ${GEMINI_MODEL})`);
   });
 }
 
-startServer();
+// Only start the server when run directly (not during unit tests)
+const isTestRunner = process.env.NODE_ENV === 'test' || process.argv.some((arg) => arg.includes('test'));
+if (!isTestRunner) {
+  startServer();
+}

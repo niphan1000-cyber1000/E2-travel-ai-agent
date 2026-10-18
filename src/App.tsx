@@ -127,12 +127,12 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-4 text-[11px]">
-            <span className="flex items-center space-x-1 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block mr-0.5" />
-              <span>GFMS / DSSR Feed Synced</span>
+            <span className="flex items-center space-x-1 text-amber-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block mr-0.5" />
+              <span>Simulated Demo Environment (Not Connected to Production DOS Systems)</span>
             </span>
             <span className="text-slate-500">|</span>
-            <span>Policy: 14 FAM 500 &amp; DSSR 040</span>
+            <span>Policy Reference: 14 FAM 500 &amp; DSSR 040</span>
           </div>
         </div>
       </footer>
