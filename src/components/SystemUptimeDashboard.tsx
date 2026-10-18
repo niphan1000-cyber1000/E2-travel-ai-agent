@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Server,
   Activity,
@@ -86,7 +86,7 @@ export const SystemUptimeDashboard: React.FC<SystemUptimeDashboardProps> = ({
               className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} />
-              <span>Refresh Pings</span>
+              <span>Simulate Refresh</span>
             </button>
           </div>
         </div>
@@ -117,7 +117,7 @@ export const SystemUptimeDashboard: React.FC<SystemUptimeDashboardProps> = ({
               <Clock className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-2xl font-bold font-mono text-blue-400">{avgLatency} ms</div>
-            <p className="text-[11px] text-slate-500 mt-1">Global average response latency</p>
+            <p className="text-[11px] text-slate-500 mt-1">Simulated avg response latency</p>
           </div>
 
           <div className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-3.5">
@@ -283,3 +283,4 @@ export const SystemUptimeDashboard: React.FC<SystemUptimeDashboardProps> = ({
     </div>
   );
 };
+
